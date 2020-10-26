@@ -1,0 +1,33 @@
+# This file goes to debian10/etc/initramfs-tools/scripts
+# and don't forget to rebuild initrd
+mountroot()
+{
+        :
+}
+
+for x in $(cat /proc/cmdline); do
+    case $x in
+    NFSMOUNT=*)
+        NFSMOUNT=${x#NFSMOUNT=}
+        ;;
+    SCRIPT=*)
+        SCRIPT=${x#SCRIPT=}
+        ;;
+    SCRIPTMOUNT=*)
+        SCRIPTMOUNT=${x#SCRIPTMOUNT=}
+        ;;
+    esac
+done
+
+configure_networking
+
+mkdir /nfsroot
+
+nfsmount -o ro -o nolock -o retrans=10 ${NFSMOUNT} /nfsroot
+nfsmount -o ro -o nolock -o retrans=10 ${SCRIPTMOUNT} /nfsroot/var/local
+
+. $SCRIPT
+
+umount /nfsroot/var/local
+umount /nfsroot
+

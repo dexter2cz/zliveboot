@@ -1,0 +1,44 @@
+# This has to be in $SCRIPTMOUNT directory
+
+set -x
+
+for x in $(cat /proc/cmdline); do
+    case $x in
+    ZRAMSIZE=*)
+        ZRAMSIZE=${x#ZRAMSIZE=}
+        ;;
+    RSYNC_IMAGE=*)
+        RSYNC_IMAGE=${x#RSYNC_IMAGE=}
+        ;;
+    CHROOT=*)
+        CHROOT=${x#CHROOT=}
+        ;;
+    RCLOCAL=*)
+        RCLOCAL=${x#RCLOCAL=}
+        ;;
+    esac
+done
+
+mount -o bind /dev ${CHROOT}/dev
+mount -o bind /proc ${CHROOT}/proc
+
+modprobe zram num_devices=1
+modprobe xfs
+
+echo "${ZRAMSIZE}" > /sys/block/zram0/disksize
+
+chroot ${CHROOT} mkfs.xfs /dev/zram0
+
+mount -o usrquota -t xfs /dev/zram0 /root
+mount -o bind /root ${CHROOT}/mnt
+
+chroot ${CHROOT} rsync -aHSX --info=progress2 --no-inc-recursive --exclude=lost+found/ --exclude=/proc/* --exclude=/dev/* --exclude=/sys/* --numeric-ids ${RSYNC_IMAGE} /mnt
+
+chroot ${CHROOT} cp ${RCLOCAL} /mnt/root/rc.local
+
+echo '@reboot root /root/rc.local > /var/log/live_configure.log 2>&1' > /root/etc/cron.d/live_configure
+
+umount ${CHROOT}/dev
+umount ${CHROOT}/proc
+umount ${CHROOT}/mnt
+

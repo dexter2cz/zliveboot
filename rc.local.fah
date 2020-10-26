@@ -1,0 +1,25 @@
+#!/bin/sh
+PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+
+touch /etc/nologin
+
+rm /etc/ssh/ssh_host_*
+dpkg-reconfigure openssh-server
+
+apt update -qqq
+apt install -y docker.io bash-completion fail2ban pciutils wget linux-headers-`uname -r` build-essential
+
+lspci | egrep -q "(3D|VGA).*: NVIDIA" && {
+    NVIDIA=440.64.00
+    MY_NVIDIA=${NVIDIA:-}
+    wget -q http://us.download.nvidia.com/tesla/$MY_NVIDIA/NVIDIA-Linux-x86_64-$MY_NVIDIA.run -O /var/cache/NVIDIA-Linux-x86_64-$MY_NVIDIA.run
+    chmod +x /var/cache/NVIDIA-Linux-x86_64-$MY_NVIDIA.run
+    /var/cache/NVIDIA-Linux-x86_64-$MY_NVIDIA.run -s
+    modprobe nvidia_uvm
+    ARGS="--privileged -e NVIDIA=$NVIDIA"
+}
+
+docker run -dt --restart unless-stopped -e USERNAME=`hostname -s` $ARGS --name fahclient dexter2cz/fahclient
+docker logs fahclient -f > /dev/console&
+
+exit 0
